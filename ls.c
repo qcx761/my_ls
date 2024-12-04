@@ -1,17 +1,17 @@
-#include <stdio.h>      // printf(), perror()
-#include <stdlib.h>     // exit(), malloc(), free()
-#include <string.h>     // strlen(), strcpy(), strcat(), strcmp()
-#include <unistd.h>     // read(), write(), close(), lseek()
-#include <fcntl.h>      // open(), O_RDONLY, O_WRONLY, O_CREAT
-#include <sys/types.h>  // off_t, mode_t, uid_t, etc.
-#include <sys/stat.h>   // stat(), lstat(), chmod(), S_IFDIR, etc.
-#include <dirent.h>     // opendir(), readdir(), closedir()
-#include <time.h>       // localtime(), strftime(), ctime()
-#include <pwd.h>        // getpwuid()
-#include <grp.h>        // getgrgid()
-#include <errno.h>      // errno, perror
+#include <stdio.h>         // printf(), perror()
+#include <stdlib.h>        // exit(), malloc(), free()
+#include <string.h>        // strlen(), strcpy(), strcat(), strcmp()
+#include <unistd.h>        // read(), write(), close(), lseek()
+#include <fcntl.h>         // open(), O_RDONLY, O_WRONLY, O_CREAT
+#include <sys/types.h>     // off_t, mode_t, uid_t, etc.
+#include <sys/stat.h>      // stat(), lstat(), chmod(), S_IFDIR, etc.
+#include <dirent.h>        // opendir(), readdir(), closedir()
+#include <time.h>          // localtime(), strftime(), ctime()
+#include <pwd.h>           // getpwuid()
+#include <grp.h>           // getgrgid()
+#include <errno.h>         // errno, perror
 #include <linux/limits.h>  // PATH_MAX
-#include<libgen.h>
+#include<libgen.h>         // basename()
 
 // 文件类型的颜色代码
 #define RESET   "\033[0m"
@@ -31,14 +31,13 @@ typedef struct {
     int show_size;
 }ls_options;
 
-// struct dirent {
-//     ino_t d_ino;           // 条目的inode号
-//     off_t d_off;           // 到下一个dirent的偏移量
-//     unsigned short d_reclen; // 记录的长度
-//     unsigned char d_type;  // 文件类型（例如普通文件、目录等）
-//     char d_name[256];      // 条目的名称（文件或目录）
-// };
-
+// -a: 显示所有文件，包括以点（.）开头的隐藏文件。
+// -l: 使用长格式列出文件的详细信息，包括权限、所有者、文件大小和最后修改时间等。
+// -R: 递归列出所有子目录中的内容。
+// -t: 按时间顺序排序，默认是按修改时间排序，从最新到最旧。
+// -r: 反向排序，通常与其他排序选项一起使用（如 -t）。
+// -i: 显示文件的 inode 号码。
+// -s: 显示文件的大小（以块为单位）。
 
 // struct stat {
 //     dev_t     st_dev;     /* 文件所在设备 */
@@ -56,13 +55,13 @@ typedef struct {
 //     time_t    st_ctime;   /* 最后状态改变时间（例如权限变化） */
 // };
 
-// -a: 显示所有文件，包括以点（.）开头的隐藏文件。
-// -l: 使用长格式列出文件的详细信息，包括权限、所有者、文件大小和最后修改时间等。
-// -R: 递归列出所有子目录中的内容。
-// -t: 按时间顺序排序，默认是按修改时间排序，从最新到最旧。
-// -r: 反向排序，通常与其他排序选项一起使用（如 -t）。
-// -i: 显示文件的 inode 号码。
-// -s: 显示文件的大小（以块为单位）。
+// struct dirent {
+//     ino_t d_ino;           // 条目的inode号
+//     off_t d_off;           // 到下一个dirent的偏移量
+//     unsigned short d_reclen; // 记录的长度
+//     unsigned char d_type;  // 文件类型（例如普通文件、目录等）
+//     char d_name[256];      // 条目的名称（文件或目录）
+// };
 
 // 获取文件颜色
 const char* get_file_color(const char* path) {   //颜色调用     //printf("%s%s%s\n", get_file_color(file_path), file_path, RESET);
@@ -81,9 +80,7 @@ const char* get_file_color(const char* path) {   //颜色调用     //printf("%s
     return RESET; // 默认颜色
 }
 
-
-
-
+//获取权限
 void print_permissions(mode_t mode) {
     // 根据文件类型打印字符
     if (S_ISSOCK(mode)) {
@@ -113,54 +110,8 @@ void print_permissions(mode_t mode) {
     printf((mode & S_IXOTH) ? "x" : "-"); // 其他用户执行权限
 }
 
-
-
-// case 'a':
-//                 opts.show_all=1;
-//                 break;
-//             case 'l':
-//                 opts.long_format=1;
-//                 break;
-//             case 'R':
-//                 opts.recursive=1;
-//                 break;
-//             case 't':
-//                 opts.sort_by_time=1;
-//                 break;
-//             case 'r':
-//                 opts.reverse=1;
-//                 break;
-//             case 'i':
-//                 opts.show_inode=1;
-//                 break;
-//             case 's':
-//                 opts.show_size=1;
-//                 break;
-//             default:
-//                 break;
-
-
-// int should_display(char *path,ls_options *opts) {
-//     //如果没有 -a 选项并且文件名以 '.' 开头，则不显示该文件
-//     if(!opts->show_all&&path[0]=='.'){
-//         return 0;
-//     }
-//     return 1;
-// }
-
-
-struct file
-{
-    char filename[256];  // 存储文件名
-    struct stat STA;     // 存储文件的状态信息（如权限、大小、时间等）
-};
-
-
-
-
-void display_file(ls_options *opts,char *path,struct stat buf){
-    char *name = basename(path); // 使用 basename 提取文件名
-    if(!opts->show_all&&*path=='.'){
+void display_file(ls_options *opts,char *name,struct stat buf){
+    if(!opts->show_all&&*name=='.'){
         return;
     }
     //-i选项：显示inode号
@@ -180,19 +131,32 @@ void display_file(ls_options *opts,char *path,struct stat buf){
         struct tm *t = localtime(&buf.st_mtime);
         printf("%d-%02d-%02d %02d:%02d ", t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min);
     }
-    // 打印文件名
-    printf("%s\n",name);
+    // 获取文件颜色（根据文件类型设置颜色）
+    const char *color = get_file_color(name);  // 获取文件的颜色
+    // 打印文件名并加上颜色
+    printf("%s%s%s\n", color, name, RESET);  // name 为文件名，color 为文件颜色，RESET 恢复颜色
 }
+
+
+
+// struct file
+// {
+//     char filename[256];  // 存储文件名
+//     struct stat STA;     // 存储文件的状态信息（如权限、大小、时间等）
+// };
 
 
 void display_dir(ls_options *opts,char *path,struct stat buf){
+    //文件接受名字与opts指针和stat
+    
+
+
 
 
 
 
 
 }
-
 
 void handle_path(ls_options *opts,char *path){
     struct stat Stat;
@@ -204,7 +168,8 @@ void handle_path(ls_options *opts,char *path){
     display_dir(opts,path,Stat);
     }
     else{
-    display_file(opts,path,Stat);
+    char *name = basename(path); // 使用 basename 提取文件名
+    display_file(opts,name,Stat);
     }
 }
 
