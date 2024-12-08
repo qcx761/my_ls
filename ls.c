@@ -20,7 +20,7 @@
 #define CYAN    "\033[36m"
 #define MAGENTA "\033[35m"
 
-// 定义结构体
+// 定义结构体（命令行参数）
 typedef struct {
     int show_all;
     int long_format;
@@ -30,6 +30,15 @@ typedef struct {
     int show_inode;
     int show_size;
 }ls_options;
+
+const char* get_file_color(const char* path);
+void print_permissions(mode_t mode);
+void display_file(ls_options *opts,char *name,struct stat buf,const char *color);
+int compare_by_time(const void *a, const void *b);
+int compare_by_name(const void *a, const void *b);
+void display_dir(ls_options *opts, char *path, struct stat buf);
+void handle_path(ls_options *opts,char *path);
+void init_ls_options(ls_options *opts);
 
 // -a: 显示所有文件，包括以点（.）开头的隐藏文件。
 // -l: 使用长格式列出文件的详细信息，包括权限、所有者、文件大小和最后修改时间等。
@@ -110,7 +119,7 @@ void print_permissions(mode_t mode) {
     printf((mode & S_IXOTH) ? "x" : "-"); // 其他用户执行权限
 }
 
-void display_file(ls_options *opts,char *name,struct stat buf){
+void display_file(ls_options *opts,char *name,struct stat buf,const char *color){
     if(!opts->show_all&&*name=='.'){
         return;
     }
@@ -131,11 +140,11 @@ void display_file(ls_options *opts,char *name,struct stat buf){
         struct tm *t = localtime(&buf.st_mtime);
         printf("%d-%02d-%02d %02d:%02d ", t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min);
     }
-    // 获取文件颜色（根据文件类型设置颜色）
-    const char *color = get_file_color(name);  // 获取文件的颜色
     // 打印文件名并加上颜色
     printf("%s%s%s\n", color, name, RESET);  // name 为文件名，color 为文件颜色，RESET 恢复颜色
 }
+
+
 
 
 
@@ -145,18 +154,118 @@ void display_file(ls_options *opts,char *name,struct stat buf){
 //     struct stat STA;     // 存储文件的状态信息（如权限、大小、时间等）
 // };
 
+// struct dirent {
+//     ino_t d_ino;           // 条目的inode号
+//     off_t d_off;           // 到下一个dirent的偏移量
+//     unsigned short d_reclen; // 记录的长度
+//     unsigned char d_type;  // 文件类型（例如普通文件、目录等）
+//     char d_name[256];      // 条目的名称（文件或目录）
+// };
 
-void display_dir(ls_options *opts,char *path,struct stat buf){
-    //文件接受名字与opts指针和stat
+
+
+typedef struct{
+    char name[256];      // 文件名
+    char full_path[PATH_MAX]; // 完整路径
+    struct stat stat_buf; // 文件状态
+}file_entry;
+
+// 按修改时间排序
+int compare_by_time(const void *a, const void *b) {
+    const file_entry *fa = (const file_entry *)a;
+    const file_entry *fb = (const file_entry *)b;
     
-
-
-
-
-
-
-
+    if (fa->stat_buf.st_mtime != fb->stat_buf.st_mtime) {
+        return fb->stat_buf.st_mtime - fa->stat_buf.st_mtime;  // 从大到小排序
+    }
+    return strcmp(fa->name, fb->name);  // 时间相同则按名称排序
 }
+
+// 按文件名排序
+int compare_by_name(const void *a, const void *b) {
+    const file_entry *fa = (const file_entry *)a;
+    const file_entry *fb = (const file_entry *)b;
+    return strcmp(fa->name, fb->name);
+}
+
+
+
+void display_dir(ls_options *opts, char *path, struct stat buf) {
+    DIR *dir = opendir(path);
+    if (dir == NULL) {
+        perror("opendir");
+        return;
+    }
+
+    struct dirent *entry;
+    struct stat file_stat;
+
+    file_entry *entries = NULL;
+    size_t count = 0;
+
+    // 收集目录内容
+    while ((entry = readdir(dir)) != NULL) {
+        if (!opts->show_all && entry->d_name[0] == '.') {
+            continue;
+        }
+
+        // 动态分配存储空间
+        file_entry *temp = realloc(entries, (count + 1) * sizeof(file_entry));
+        if (temp == NULL) {
+            perror("realloc");
+            free(entries);
+            closedir(dir);
+            return;
+        }
+        entries = temp;
+
+        // 填充文件信息
+        snprintf(entries[count].full_path, sizeof(entries[count].full_path), "%s/%s", path, entry->d_name);
+        strncpy(entries[count].name, entry->d_name, sizeof(entries[count].name));
+
+        if (lstat(entries[count].full_path, &file_stat) == -1) {
+            perror("lstat");
+            continue;
+        }
+        entries[count].stat_buf = file_stat;
+        count++;
+    }
+    closedir(dir);
+
+    // 排序目录内容
+    if (opts->sort_by_time) {
+        qsort(entries, count, sizeof(file_entry), compare_by_time);  // 按时间排序
+    } else {
+        qsort(entries, count, sizeof(file_entry), compare_by_name);  // 按名称排序
+    }
+
+    // 逆序排序（-r 选项）
+    if (opts->reverse) {
+        for (size_t i = 0; i < count / 2; i++) {
+            file_entry temp = entries[i];
+            entries[i] = entries[count - i - 1];
+            entries[count - i - 1] = temp;
+        }
+    }
+
+    // 输出文件信息
+    for (size_t i = 0; i < count; i++) {
+        if (opts->recursive && S_ISDIR(entries[i].stat_buf.st_mode) &&
+            strcmp(entries[i].name, ".") != 0 && strcmp(entries[i].name, "..") != 0) {
+            printf("\n%s:\n", entries[i].full_path);
+            handle_path(opts, entries[i].full_path); // 递归处理子目录
+        } else {
+            const char *color = get_file_color(entries[i].full_path);
+            display_file(opts, entries[i].name, entries[i].stat_buf, color);
+        }
+    }
+
+    free(entries); // 释放动态数组
+}
+
+
+
+
 
 void handle_path(ls_options *opts,char *path){
     struct stat Stat;
@@ -168,12 +277,14 @@ void handle_path(ls_options *opts,char *path){
     display_dir(opts,path,Stat);
     }
     else{
+    // 获取文件颜色（根据文件类型设置颜色）
+    const char *color = get_file_color(path);  // 获取文件的颜色
     char *name = basename(path); // 使用 basename 提取文件名
-    display_file(opts,name,Stat);
+    display_file(opts,name,Stat,color);
     }
 }
 
-void init_ls_options(ls_options *opts) {
+void init_ls_options(ls_options *opts){   //初始化
     opts->show_all = 0;         // `-a` 选项：显示所有文件，包括隐藏文件
     opts->long_format = 0;      // `-l` 选项：显示详细信息
     opts->recursive = 0;        // `-R` 选项：递归列出子目录内容
@@ -226,7 +337,7 @@ int main(int argc,char *argv[]){
         }
     }
     if(n==argc){
-        handle_path(opts,"./");
+        handle_path(opts,"./"); //没有路径则为当前目录
     }
     for(;n<argc;n++){
         handle_path(opts,argv[n]);
