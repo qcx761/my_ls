@@ -146,14 +146,6 @@ void display_file(ls_options *opts,char *name,struct stat buf,const char *color)
 
 
 
-
-
-// struct file
-// {
-//     char filename[256];  // 存储文件名
-//     struct stat STA;     // 存储文件的状态信息（如权限、大小、时间等）
-// };
-
 // struct dirent {
 //     ino_t d_ino;           // 条目的inode号
 //     off_t d_off;           // 到下一个dirent的偏移量
@@ -335,9 +327,9 @@ int main(int argc,char *argv[]){
             n=i;
             break;
         }
-    }
-    if(n==argc){
-        handle_path(opts,"./"); //没有路径则为当前目录
+        else{
+            handle_path(opts,"./"); //没有路径则为当前目录
+        }
     }
     for(;n<argc;n++){
         handle_path(opts,argv[n]);
