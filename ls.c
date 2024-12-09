@@ -181,7 +181,6 @@ int compare_by_name(const void *a, const void *b) {
 }
 
 
-
 void display_dir(ls_options *opts, char *path, struct stat buf) {
     DIR *dir = opendir(path);
     if (dir == NULL) {
@@ -255,16 +254,13 @@ void display_dir(ls_options *opts, char *path, struct stat buf) {
     free(entries); // 释放动态数组
 }
 
-
-
-
-
 void handle_path(ls_options *opts,char *path){
     struct stat Stat;
     if(lstat(path,&Stat)==-1){
         perror("lstat");
         return;
     }
+    printf("\n%s:\n", path);  // 显示当前路径
     if(S_ISDIR(Stat.st_mode)){//判断是否为目录
     display_dir(opts,path,Stat);
     }
@@ -321,18 +317,15 @@ int main(int argc,char *argv[]){
                 break;
         }
     }
-    int n;
+    int m=0;
     for(int i=1;i<argc;i++){
-        if(argv[i][0]!='-'){  // 找到第一个非选项参数
-            n=i;
-            break;
-        }
-        else{
-            handle_path(opts,"./"); //没有路径则为当前目录
+        if(argv[i][0]!='-'){
+            handle_path(opts,argv[i]);
+            m++;
         }
     }
-    for(;n<argc;n++){
-        handle_path(opts,argv[n]);
+    if(m==0){
+        handle_path(opts,"./"); //没有路径则为当前目录
     }
     free(opts);
     return 0;
