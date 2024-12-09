@@ -173,11 +173,16 @@ int compare_by_time(const void *a, const void *b) {
     return strcmp(fa->name, fb->name);  // 时间相同则按名称排序
 }
 
-// 按文件名排序
+// 按文件名排序，隐藏文件去除开头的 '.'
 int compare_by_name(const void *a, const void *b) {
     const file_entry *fa = (const file_entry *)a;
     const file_entry *fb = (const file_entry *)b;
-    return strcmp(fa->name, fb->name);
+
+    // 获取实际的文件名，去掉开头的 '.'
+    const char *name_a = (fa->name[0] == '.') ? fa->name + 1 : fa->name;
+    const char *name_b = (fb->name[0] == '.') ? fb->name + 1 : fb->name;
+
+    return strcmp(name_a, name_b);
 }
 
 
@@ -317,6 +322,7 @@ int main(int argc,char *argv[]){
                 break;
         }
     }
+
     int m=0;
     for(int i=1;i<argc;i++){
         if(argv[i][0]!='-'){
