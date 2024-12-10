@@ -124,24 +124,30 @@ void display_file(ls_options *opts,char *name,struct stat buf,const char *color)
         return;
     }
     //-i选项：显示inode号
-    if (opts->show_inode){
-        printf("%ld ",buf.st_ino);
+    if(opts->show_inode){
+        printf("%8ld ",buf.st_ino);
     }
-    if (opts->long_format){
+    // -s选项：显示文件的块数
+    if(opts->show_size){
+        printf("%3ld ",buf.st_blocks/2);  // 打印文件占用的块数(512区块转化为1024区块要除以2)
+    }
+    if(opts->long_format){
         print_permissions(buf.st_mode);  //打印权限
-        printf(" %ld ",buf.st_nlink);   //打印硬链接数
-        printf("%s ",getpwuid(buf.st_uid)->pw_name);  //打印文件所有者
-        printf("%s ",getgrgid(buf.st_gid)->gr_name);  //打印文件所属组
-        // -s选项：显示文件大小
-        if(opts->show_size){
-            printf("%6ld ",buf.st_size);  //打印文件大小
+        printf(" %3ld ",buf.st_nlink);   //打印硬链接数
+        printf("%8s ",getpwuid(buf.st_uid)->pw_name);  //打印文件所有者
+        printf("%8s ",getgrgid(buf.st_gid)->gr_name);  //打印文件所属组
+        // 打印文件大小
+        if(S_ISDIR(buf.st_mode)){
+            printf("%6d ",4096);  // 目录通常显示 4096
+        }else{
+            printf("%6ld ",buf.st_size);  // 打印实际文件大小
         }
         // 打印文件修改时间
-        struct tm *t = localtime(&buf.st_mtime);
-        printf("%d-%02d-%02d %02d:%02d ", t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min);
+        struct tm *t=localtime(&buf.st_mtime);
+        printf("%d-%02d-%02d %02d:%02d ",t->tm_year+1900,t->tm_mon+1,t->tm_mday,t->tm_hour,t->tm_min);
     }
     // 打印文件名并加上颜色
-    printf("%s%s%s\n", color, name, RESET);  // name 为文件名，color 为文件颜色，RESET 恢复颜色
+    printf("%s%s%s\n",color,name,RESET);  // name 为文件名，color 为文件颜色，RESET 恢复颜色
 }
 
 
@@ -184,6 +190,7 @@ int compare_by_name(const void *a, const void *b) {
 
     return strcmp(name_a, name_b);
 }
+
 
 
 void display_dir(ls_options *opts, char *path, struct stat buf) {
