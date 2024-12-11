@@ -311,7 +311,6 @@ void display_dir(ls_options *opts, char *path, struct stat buf) {
 
     // 输出文件信息
     for (size_t i = 0; i < count; i++) {
-        if(strcmp(entries[i].name, ".") != 0 && strcmp(entries[i].name, "..") != 0)  {
             // 获取文件对应的颜色
             const char *color = get_file_color(entries[i].full_path);
             // 输出文件信息
@@ -340,7 +339,6 @@ void display_dir(ls_options *opts, char *path, struct stat buf) {
                         printf("\n");
                     }
                 }
-            }
         }
     }
     // 如果最后一行未满，手动换行
