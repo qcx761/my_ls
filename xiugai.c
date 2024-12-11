@@ -12,6 +12,8 @@
 #include <errno.h>         // errno, perror
 #include <linux/limits.h>  // PATH_MAX
 #include<libgen.h>         // basename()
+#include <sys/ioctl.h>      //获取终端长度
+
 
 // 文件类型的颜色代码
 #define RESET   "\033[0m"
@@ -39,6 +41,9 @@ int compare_by_name(const void *a, const void *b);
 void display_dir(ls_options *opts, char *path, struct stat buf);
 void handle_path(ls_options *opts,char *path);
 void init_ls_options(ls_options *opts);
+int search_n(ls_options *opts,char *name,struct stat buf);
+void get_terminal_width(int *width);
+
 
 // -a: 显示所有文件，包括以点（.）开头的隐藏文件。
 // -l: 使用长格式列出文件的详细信息，包括权限、所有者、文件大小和最后修改时间等。
@@ -71,6 +76,43 @@ void init_ls_options(ls_options *opts);
 //     unsigned char d_type;  // 文件类型（例如普通文件、目录等）
 //     char d_name[256];      // 条目的名称（文件或目录）
 // };
+
+//没有l就对齐输出，判断一行能放几个
+int search_n(ls_options *opts,char *name,struct stat buf){
+    int length=0;
+    if(opts->show_size){
+        length+=5;
+    }
+    if(opts->show_inode){
+        length+=9;
+    }
+    int terminal_width;  // 变量用于存储终端宽度
+    // 将变量的地址传递给函数
+    get_terminal_width(&terminal_width);
+    int actual_length=0;
+    for (int i=0;name[i]!='\0';) {
+        if((unsigned char)name[i]>=0x80) {
+            actual_length+=2;  // 汉字显示占两个字符宽度
+            i+=3;  // UTF-8 编码汉字占 3 字节
+        }else{
+            actual_length+=1;  // ASCII 占一个字符宽度
+            i++;
+        }
+    }
+    length+=actual_length;  // 文件名总长度
+    int n=terminal_width/length;  // 计算每行最多文件数
+    return n;
+}
+
+//获取终端宽度
+void get_terminal_width(int *width) {
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) {
+        *width = ws.ws_col;
+    } else {
+        *width = 80;  // 默认宽度
+    }
+}
 
 // 获取文件颜色
 const char* get_file_color(const char* path) {   //颜色调用     //printf("%s%s%s\n", get_file_color(file_path), file_path, RESET);
@@ -129,7 +171,7 @@ void display_file(ls_options *opts,char *name,struct stat buf,const char *color)
     }
     // -s选项：显示文件的块数
     if(opts->show_size){
-        printf("%3ld ",buf.st_blocks/2);  // 打印文件占用的块数(512区块转化为1024区块要除以2)
+        printf("%4ld ",buf.st_blocks/2);  // 打印文件占用的块数(512区块转化为1024区块要除以2)
     }
     if(opts->long_format){
         print_permissions(buf.st_mode);  //打印权限
@@ -145,11 +187,14 @@ void display_file(ls_options *opts,char *name,struct stat buf,const char *color)
         // 打印文件修改时间
         struct tm *t=localtime(&buf.st_mtime);
         printf("%d-%02d-%02d %02d:%02d ",t->tm_year+1900,t->tm_mon+1,t->tm_mday,t->tm_hour,t->tm_min);
-    }
+    
     // 打印文件名并加上颜色
     printf("%s%s%s\n",color,name,RESET);  // name 为文件名，color 为文件颜色，RESET 恢复颜色
+    }
+    if(!opts->long_format){
+        printf("%s%s%s",color,name,RESET);  // name 为文件名，color 为文件颜色，RESET 恢复颜色
+    }
 }
-
 
 
 // struct dirent {
@@ -161,12 +206,12 @@ void display_file(ls_options *opts,char *name,struct stat buf,const char *color)
 // };
 
 
-
 typedef struct{
     char name[256];      // 文件名
     char full_path[PATH_MAX]; // 完整路径
     struct stat stat_buf; // 文件状态
 }file_entry;
+
 
 // 按修改时间排序
 int compare_by_time(const void *a, const void *b) {
@@ -249,20 +294,92 @@ void display_dir(ls_options *opts, char *path, struct stat buf) {
         }
     }
 
-    // 输出文件信息
+    // 获取终端一行最多能输出几个文件名
+    int arr[200];
+    int max = 0;
+    // 遍历目录中的每个文件，计算其对齐信息
     for (size_t i = 0; i < count; i++) {
-        if (opts->recursive && S_ISDIR(entries[i].stat_buf.st_mode) &&
-            strcmp(entries[i].name, ".") != 0 && strcmp(entries[i].name, "..") != 0) {
-            printf("\n%s:\n", entries[i].full_path);
-            handle_path(opts, entries[i].full_path); // 递归处理子目录
-        } else {
-            const char *color = get_file_color(entries[i].full_path);
-            display_file(opts, entries[i].name, entries[i].stat_buf, color);
+        arr[i] = search_n(opts, entries[i].name, entries[i].stat_buf); // 使用文件名和文件状态
+    }
+    // 获取最大值
+    max = arr[0]; // 初始化为第一个文件的对齐值
+    for (size_t i = 1; i < count; i++) {
+        if (arr[i] < max) {
+            max = arr[i];
         }
     }
 
-    free(entries); // 释放动态数组
+    // 输出文件信息
+    for (size_t i = 0; i < count; i++) {
+        if (!opts->recursive && strcmp(entries[i].name, ".") != 0 && strcmp(entries[i].name, "..") != 0)  {
+            // 获取文件对应的颜色
+            const char *color = get_file_color(entries[i].full_path);
+            // 输出文件信息
+            display_file(opts, entries[i].name, entries[i].stat_buf, color);
+            if(!opts->long_format){
+                int terminal_width;  // 变量用于存储终端宽度
+                // 将变量的地址传递给函数
+                get_terminal_width(&terminal_width);
+                int max_name_len=terminal_width/max;
+                if(opts->show_inode){
+                    max_name_len-=9;
+                }
+                if(opts->show_size){
+                    max_name_len-=5;
+                }
+                int file_len = strlen(entries[i].name);
+                // 如果文件名长度小于最大长度，添加空格补齐
+                int spaces = max_name_len - file_len;
+//文件有汉字对齐有偏差
+                for (int j = 0; j < spaces; j++) {
+                    printf(" ");  // 输出补齐的空格
+                }
+            // 非长格式时，控制输出的对齐
+                if (!opts->long_format) {
+                    if ((i + 1) % max == 0) { // 每行输出 `max` 个文件后换行
+                        printf("\n");
+                    }
+                }
+            }
+        }
+    }
+    // 如果最后一行未满，手动换行
+    if (!opts->long_format && count % max != 0&&!opts->long_format){
+        printf("\n");
+    }
+
+
+    //处理-R
+    for (size_t i = 0; i < count; i++){
+        if (opts->recursive && S_ISDIR(entries[i].stat_buf.st_mode) &&
+            strcmp(entries[i].name, ".") != 0 && strcmp(entries[i].name, "..") != 0) {
+            // 如果是目录且递归选项开启，递归处理子目录
+            printf("\n%s:\n", entries[i].full_path);
+            handle_path(opts, entries[i].full_path);
+
+        //循环有大问题
+
+
+
+
+
+
+
+
+
+        }
 }
+
+
+
+
+
+
+// 释放动态数组
+free(entries);
+}
+
+
 
 void handle_path(ls_options *opts,char *path){
     struct stat Stat;
