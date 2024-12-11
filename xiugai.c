@@ -354,7 +354,6 @@ void display_dir(ls_options *opts, char *path, struct stat buf) {
         if (opts->recursive && S_ISDIR(entries[i].stat_buf.st_mode) &&
             strcmp(entries[i].name, ".") != 0 && strcmp(entries[i].name, "..") != 0) {
             // 如果是目录且递归选项开启，递归处理子目录
-            printf("\n%s:\n", entries[i].full_path);
             handle_path(opts, entries[i].full_path);
 
         //循环有大问题
