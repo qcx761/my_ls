@@ -23,7 +23,7 @@
 #define MAGENTA "\033[35m"
 
 // 定义结构体（命令行参数）
-typedef struct {
+typedef struct{
     int show_all;
     int long_format;
     int recursive;
@@ -38,7 +38,7 @@ void print_permissions(mode_t mode);
 void display_file(ls_options *opts,char *name,struct stat buf,const char *color);
 int compare_by_time(const void *a, const void *b);
 int compare_by_name(const void *a, const void *b);
-void display_dir(ls_options *opts, char *path, struct stat buf);
+void display_dir(ls_options *opts, char *path);
 void handle_path(ls_options *opts,char *path);
 void init_ls_options(ls_options *opts);
 int search_n(ls_options *opts,char *name,struct stat buf);
@@ -69,7 +69,7 @@ void get_terminal_width(int *width);
 //     time_t    st_ctime;   /* 最后状态改变时间（例如权限变化） */
 // };
 
-// struct dirent {
+// struct dirent{
 //     ino_t d_ino;           // 条目的inode号
 //     off_t d_off;           // 到下一个dirent的偏移量
 //     unsigned short d_reclen; // 记录的长度
@@ -215,30 +215,30 @@ typedef struct{
 
 // 按修改时间排序
 int compare_by_time(const void *a, const void *b) {
-    const file_entry *fa = (const file_entry *)a;
-    const file_entry *fb = (const file_entry *)b;
+    const file_entry *fa=(const file_entry *)a;
+    const file_entry *fb=(const file_entry *)b;
     
-    if (fa->stat_buf.st_mtime != fb->stat_buf.st_mtime) {
-        return fb->stat_buf.st_mtime - fa->stat_buf.st_mtime;  // 从大到小排序
+    if (fa->stat_buf.st_mtime!=fb->stat_buf.st_mtime) {
+        return fb->stat_buf.st_mtime-fa->stat_buf.st_mtime;  // 从大到小排序
     }
-    return strcmp(fa->name, fb->name);  // 时间相同则按名称排序
+    return strcmp(fa->name,fb->name);  // 时间相同则按名称排序
 }
 
 // 按文件名排序，隐藏文件去除开头的 '.'
 int compare_by_name(const void *a, const void *b) {
-    const file_entry *fa = (const file_entry *)a;
-    const file_entry *fb = (const file_entry *)b;
+    const file_entry *fa=(const file_entry *)a;
+    const file_entry *fb=(const file_entry *)b;
 
     // 获取实际的文件名，去掉开头的 '.'
-    const char *name_a = (fa->name[0] == '.') ? fa->name + 1 : fa->name;
-    const char *name_b = (fb->name[0] == '.') ? fb->name + 1 : fb->name;
+    const char *name_a=(fa->name[0]=='.')?fa->name+1:fa->name;
+    const char *name_b=(fb->name[0]=='.')?fb->name+1:fb->name;
 
-    return strcmp(name_a, name_b);
+    return strcmp(name_a,name_b);
 }
 
-void display_dir(ls_options *opts, char *path, struct stat buf) {
-    DIR *dir = opendir(path);
-    if (dir == NULL) {
+void display_dir(ls_options *opts, char *path) {
+    DIR *dir=opendir(path);
+    if(dir==NULL){
         perror("opendir");
         return;
     }
@@ -246,25 +246,24 @@ void display_dir(ls_options *opts, char *path, struct stat buf) {
     struct dirent *entry;
     struct stat file_stat;
 
-    file_entry *entries = NULL;
-    size_t count = 0;
+    file_entry *entries=NULL;
+    size_t count=0;
 
     // 收集目录内容
-    while ((entry = readdir(dir)) != NULL) {
-        if (!opts->show_all && entry->d_name[0] == '.') {
+    while((entry=readdir(dir))!=NULL){
+        if(!opts->show_all&&entry->d_name[0]=='.'){
             continue;
         }
 
         // 动态分配存储空间
-        file_entry *temp = realloc(entries, (count + 1) * sizeof(file_entry));
-        if (temp == NULL) {
+        file_entry *temp=realloc(entries,(count + 1)*sizeof(file_entry));
+        if (temp == NULL){
             perror("realloc");
             free(entries);
             closedir(dir);
             return;
         }
         entries = temp;
-
         // 填充文件信息
         snprintf(entries[count].full_path, sizeof(entries[count].full_path), "%s/%s", path, entry->d_name);
         strncpy(entries[count].name, entry->d_name, sizeof(entries[count].name));
@@ -367,7 +366,7 @@ void handle_path(ls_options *opts,char *path){
     }
     printf("\n%s:\n", path);  // 显示当前路径
     if(S_ISDIR(Stat.st_mode)){//判断是否为目录
-    display_dir(opts,path,Stat);
+    display_dir(opts,path);
     }
     else{
     // 获取文件颜色（根据文件类型设置颜色）
