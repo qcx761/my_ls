@@ -294,7 +294,7 @@ void display_dir(ls_options *opts, char *path) {
     }
 
     // 获取终端一行最多能输出几个文件名
-    int arr[200];
+    int arr[count];
     int max = 0;
     // 遍历目录中的每个文件，计算其对齐信息
     for (size_t i = 0; i < count; i++) {
@@ -341,7 +341,7 @@ void display_dir(ls_options *opts, char *path) {
         }
     }
     // 如果最后一行未满，手动换行
-    if (!opts->long_format && count % max != 0&&!opts->long_format){
+    if (!opts->long_format && count % max != 0){
         printf("\n");
     }
 
