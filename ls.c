@@ -180,9 +180,9 @@ void display_file(ls_options *opts,char *name,struct stat buf,const char *color)
         printf("%8s ",getgrgid(buf.st_gid)->gr_name);  //打印文件所属组
         // 打印文件大小
         if(S_ISDIR(buf.st_mode)){
-            printf("%6d ",4096);  // 目录通常显示 4096
+            printf("%11d ",4096);  // 目录通常显示 4096
         }else{
-            printf("%6ld ",buf.st_size);  // 打印实际文件大小
+            printf("%11ld ",buf.st_size);  // 打印实际文件大小
         }
         // 打印文件修改时间
         struct tm *t=localtime(&buf.st_mtime);
