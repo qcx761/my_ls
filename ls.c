@@ -21,6 +21,7 @@
 #define GREEN   "\033[32m"
 #define CYAN    "\033[36m"
 #define MAGENTA "\033[35m"
+#define YELLOW  "\033[33m"
 
 // 定义结构体（命令行参数）
 typedef struct{
@@ -115,18 +116,23 @@ void get_terminal_width(int *width) {
 }
 
 // 获取文件颜色
-const char* get_file_color(const char* path) {   //颜色调用     //printf("%s%s%s\n", get_file_color(file_path), file_path, RESET);
+const char* get_file_color(const char* path) {
     struct stat file_stat;
     if (stat(path, &file_stat) == -1) {
         return RESET;  // 文件不存在，返回默认颜色
     }
+
     // 判断文件类型
     if (S_ISDIR(file_stat.st_mode)) {
         return BLUE;   // 文件夹为蓝色
     } else if (S_ISLNK(file_stat.st_mode)) {
         return GREEN;  // 符号链接为绿色
     } else if (S_ISREG(file_stat.st_mode)) {
-        return RESET;  // 普通文件为默认颜色
+        // 判断是否为可执行文件
+        if (file_stat.st_mode & S_IXUSR || file_stat.st_mode & S_IXGRP || file_stat.st_mode & S_IXOTH) {
+            return YELLOW; // 可执行文件为黄色
+        }
+        return RESET; // 普通文件为默认颜色
     }
     return RESET; // 默认颜色
 }
@@ -188,7 +194,7 @@ void display_file(ls_options *opts,char *name,struct stat buf,const char *color)
     printf("%s%s%s\n",color,name,RESET);  // name 为文件名，color 为文件颜色，RESET 恢复颜色
     }
     if(!opts->long_format){
-        printf("%s%s%s",color,name,RESET);  // name 为文件名，color 为文件颜色，RESET 恢复颜色
+        printf("%s%s%s ",color,name,RESET);  // name 为文件名，color 为文件颜色，RESET 恢复颜色
     }
 }
 
