@@ -310,6 +310,10 @@ void display_dir(ls_options *opts, char *path) {
         }
     }
 
+    if(max==0){
+        return;
+    }
+
     // 输出文件信息
     for (size_t i = 0; i < count; i++) {
             // 获取文件对应的颜色
