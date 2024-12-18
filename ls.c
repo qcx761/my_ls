@@ -181,15 +181,21 @@ void display_file(ls_options *opts,char *name,struct stat buf,const char *color)
     }
     if(opts->long_format){
         print_permissions(buf.st_mode);  //打印权限
-        printf(" %3ld ",buf.st_nlink);   //打印硬链接数
-        printf("%8s ",getpwuid(buf.st_uid)->pw_name);  //打印文件所有者
-        printf("%8s ",getgrgid(buf.st_gid)->gr_name);  //打印文件所属组
+        printf(" %4ld ",buf.st_nlink);   //打印硬链接数
+        struct passwd *uid;
+        struct group *gid;
+        uid=getpwuid(buf.st_uid);
+        gid=getgrgid(buf.st_gid);
+        if(uid==NULL||gid==NULL){
+            return;
+        }
+        printf("%8s ",uid->pw_name);  //打印文件所有者
+        printf("%8s ",gid->gr_name);  //打印文件所属组
         // 打印文件大小
         printf("%11ld ",buf.st_size);
         // 打印文件修改时间
         struct tm *t=localtime(&buf.st_mtime);
         printf("%d-%02d-%02d %02d:%02d ",t->tm_year+1900,t->tm_mon+1,t->tm_mday,t->tm_hour,t->tm_min);
-    
     // 打印文件名并加上颜色
     printf("%s%s%s\n",color,name,RESET);  // name 为文件名，color 为文件颜色，RESET 恢复颜色
     }
@@ -209,8 +215,8 @@ void display_file(ls_options *opts,char *name,struct stat buf,const char *color)
 
 
 typedef struct{
-    char name[256];      // 文件名
-    char full_path[PATH_MAX]; // 完整路径
+    char name[2000];      // 文件名
+    char full_path[2000]; // 完整路径
     struct stat stat_buf; // 文件状态
 }file_entry;
 
